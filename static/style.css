@@ -1,0 +1,348 @@
+/* ============ 全局样式 ============ */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    background: linear-gradient(135deg, #FFF8F0 0%, #FFE8D6 100%);
+    min-height: 100vh;
+    color: #2D2D2D;
+}
+
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 40px 20px;
+}
+
+/* ============ 头部 ============ */
+.header {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.header h1 {
+    font-size: 36px;
+    color: #FF6B35;
+    margin-bottom: 8px;
+}
+
+.subtitle {
+    font-size: 16px;
+    color: #888;
+}
+
+/* ============ 工作流 ============ */
+.workflow-section {
+    background: white;
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 2px 12px rgba(255, 107, 53, 0.1);
+}
+
+.workflow-section h2 {
+    font-size: 18px;
+    margin-bottom: 20px;
+    color: #FF6B35;
+}
+
+.workflow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    opacity: 0.4;
+    transition: all 0.3s;
+}
+
+.step.active {
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+.step.done {
+    opacity: 0.8;
+}
+
+.step-number {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: #E0E0E0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 18px;
+    color: white;
+    transition: all 0.3s;
+}
+
+.step.active .step-number {
+    background: #FF6B35;
+    box-shadow: 0 4px 12px rgba(255, 107, 53, 0.4);
+}
+
+.step.done .step-number {
+    background: #FFB347;
+}
+
+.step-label {
+    font-size: 13px;
+    color: #666;
+}
+
+.step-arrow {
+    font-size: 20px;
+    color: #CCC;
+    margin: 0 4px;
+}
+
+/* ============ 输入区 ============ */
+.input-section {
+    background: white;
+    border-radius: 16px;
+    padding: 32px;
+    margin-bottom: 24px;
+    box-shadow: 0 2px 12px rgba(255, 107, 53, 0.1);
+}
+
+.form-group {
+    margin-bottom: 24px;
+}
+
+.form-group label {
+    display: block;
+    font-size: 15px;
+    font-weight: bold;
+    margin-bottom: 10px;
+    color: #444;
+}
+
+.form-group input[type="text"] {
+    width: 100%;
+    padding: 14px 18px;
+    border: 2px solid #FFD4A8;
+    border-radius: 12px;
+    font-size: 16px;
+    outline: none;
+    transition: border-color 0.3s;
+}
+
+.form-group input[type="text"]:focus {
+    border-color: #FF6B35;
+}
+
+.type-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.type-btn {
+    padding: 10px 20px;
+    border: 2px solid #FFD4A8;
+    border-radius: 25px;
+    background: white;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+    color: #666;
+}
+
+.type-btn:hover {
+    border-color: #FF6B35;
+    color: #FF6B35;
+}
+
+.type-btn.active {
+    background: #FF6B35;
+    color: white;
+    border-color: #FF6B35;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: normal !important;
+    cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: #FF6B35;
+}
+
+.action-row {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+}
+
+.btn {
+    padding: 14px 32px;
+    border-radius: 30px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+}
+
+.btn-primary {
+    background: #FFF8F0;
+    color: #FF6B35;
+    border: 2px solid #FF6B35;
+}
+
+.btn-primary:hover {
+    background: #FF6B35;
+    color: white;
+}
+
+.btn-main {
+    background: linear-gradient(135deg, #FF6B35, #FF8C5A);
+    color: white;
+    box-shadow: 0 4px 16px rgba(255, 107, 53, 0.35);
+}
+
+.btn-main:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(255, 107, 53, 0.45);
+}
+
+.btn-secondary {
+    background: #F5F5F5;
+    color: #444;
+}
+
+.btn-secondary:hover {
+    background: #E8E8E8;
+}
+
+/* ============ 加载 ============ */
+.loading {
+    text-align: center;
+    padding: 40px;
+}
+
+.spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid #FFD4A8;
+    border-top-color: #FF6B35;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 16px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.loading p {
+    color: #888;
+    font-size: 15px;
+}
+
+/* ============ 结果区 ============ */
+.result-section {
+    background: white;
+    border-radius: 16px;
+    padding: 32px;
+    box-shadow: 0 2px 12px rgba(255, 107, 53, 0.1);
+}
+
+.result-section h2 {
+    font-size: 20px;
+    color: #FF6B35;
+    margin-bottom: 20px;
+}
+
+.result-card {
+    background: #FFF8F0;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+}
+
+.result-card h3 {
+    font-size: 22px;
+    color: #2D2D2D;
+    line-height: 1.6;
+    margin-bottom: 12px;
+}
+
+.meta-info {
+    margin-bottom: 16px;
+}
+
+.badge {
+    display: inline-block;
+    padding: 4px 14px;
+    background: #FF6B35;
+    color: white;
+    border-radius: 15px;
+    font-size: 13px;
+}
+
+.body-text {
+    font-size: 15px;
+    line-height: 2;
+    color: #444;
+    white-space: pre-wrap;
+    margin-bottom: 16px;
+}
+
+.tags {
+    font-size: 14px;
+    color: #FF6B35;
+    line-height: 1.8;
+}
+
+.image-gallery h3 {
+    font-size: 17px;
+    margin-bottom: 16px;
+    color: #444;
+}
+
+.gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 16px;
+}
+
+.gallery-item {
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.result-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+    justify-content: center;
+}
+
+/* ============ 响应式 ============ */
+@media (max-width: 600px) {
+    .header h1 { font-size: 26px; }
+    .workflow { gap: 4px; }
+    .step-arrow { margin: 0 2px; }
+    .action-row { flex-direction: column; }
+    .gallery-grid { grid-template-columns: repeat(2, 1fr); }
+}

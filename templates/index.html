@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小红书一键创作助手</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- 头部 -->
+        <header class="header">
+            <h1>小红书一键创作助手</h1>
+            <p class="subtitle">输入关键词，自动生成标题、正文、标签和配图</p>
+        </header>
+
+        <!-- 工作流进度 -->
+        <div class="workflow-section">
+            <h2>创作流程</h2>
+            <div class="workflow">
+                <div class="step" id="step1">
+                    <div class="step-number">1</div>
+                    <div class="step-label">输入主题</div>
+                </div>
+                <div class="step-arrow">→</div>
+                <div class="step" id="step2">
+                    <div class="step-number">2</div>
+                    <div class="step-label">选择类型</div>
+                </div>
+                <div class="step-arrow">→</div>
+                <div class="step" id="step3">
+                    <div class="step-number">3</div>
+                    <div class="step-label">AI 生成</div>
+                </div>
+                <div class="step-arrow">→</div>
+                <div class="step" id="step4">
+                    <div class="step-number">4</div>
+                    <div class="step-label">导出图文</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 输入区 -->
+        <div class="input-section">
+            <div class="form-group">
+                <label for="keyword">你想写什么主题？</label>
+                <input
+                    type="text"
+                    id="keyword"
+                    placeholder="例如：护肤步骤、手机测评、早餐食谱..."
+                    maxlength="30"
+                >
+            </div>
+
+            <div class="form-group">
+                <label>选择内容类型</label>
+                <div class="type-grid" id="typeGrid">
+                    {% for ct in content_types %}
+                    <button class="type-btn" data-type="{{ ct }}">{{ ct }}</button>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="genImages" checked>
+                    同时生成配图（需要几秒钟）
+                </label>
+            </div>
+
+            <div class="action-row">
+                <button class="btn btn-primary" id="btnPreview" onclick="doPreview()">
+                    先预览文案
+                </button>
+                <button class="btn btn-main" id="btnGenerate" onclick="doGenerate()">
+                    一键生成全部
+                </button>
+            </div>
+        </div>
+
+        <!-- 加载动画 -->
+        <div class="loading" id="loading" style="display:none;">
+            <div class="spinner"></div>
+            <p>正在创作中，请稍候...</p>
+        </div>
+
+        <!-- 结果区 -->
+        <div class="result-section" id="resultSection" style="display:none;">
+            <h2>创作结果</h2>
+
+            <!-- 文案预览 -->
+            <div class="result-card" id="textResult">
+                <h3 id="resultTitle"></h3>
+                <div class="meta-info">
+                    <span class="badge" id="resultType"></span>
+                </div>
+                <div class="body-text" id="resultBody"></div>
+                <div class="tags" id="resultTags"></div>
+            </div>
+
+            <!-- 图片预览 -->
+            <div class="image-gallery" id="imageGallery" style="display:none;">
+                <h3>生成的配图</h3>
+                <div class="gallery-grid" id="galleryGrid"></div>
+            </div>
+
+            <!-- 操作按钮 -->
+            <div class="result-actions" id="resultActions" style="display:none;">
+                <button class="btn btn-secondary" onclick="copyText()">复制文案</button>
+                <button class="btn btn-secondary" onclick="location.reload()">再创作一篇</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 当前选中的类型
+        let selectedType = "教程攻略";
+
+        // 类型选择
+        document.getElementById("typeGrid").addEventListener("click", function (e) {
+            if (e.target.classList.contains("type-btn")) {
+                document.querySelectorAll(".type-btn").forEach(b => b.classList.remove("active"));
+                e.target.classList.add("active");
+                selectedType = e.target.dataset.type;
+            }
+        });
+
+        // 默认选中第一个
+        document.querySelector(".type-btn").classList.add("active");
+
+        // 更新工作流状态
+        function updateWorkflow(activeStep) {
+            for (let i = 1; i <= 4; i++) {
+                const step = document.getElementById("step" + i);
+                step.classList.remove("active", "done");
+                if (i < activeStep) step.classList.add("done");
+                if (i === activeStep) step.classList.add("active");
+            }
+        }
+
+        // 预览文案
+        async function doPreview() {
+            const keyword = document.getElementById("keyword").value.trim();
+            if (!keyword) { alert("请输入主题关键词"); return; }
+
+            updateWorkflow(2);
+            showLoading(true);
+
+            try {
+                const resp = await fetch("/api/preview", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ keyword, content_type: selectedType }),
+                });
+                const data = await resp.json();
+
+                if (data.success) {
+                    showResult(data.content, []);
+                    updateWorkflow(3);
+                } else {
+                    alert("生成失败: " + data.error);
+                }
+            } catch (err) {
+                alert("请求失败: " + err.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // 一键生成全部
+        async function doGenerate() {
+            const keyword = document.getElementById("keyword").value.trim();
+            if (!keyword) { alert("请输入主题关键词"); return; }
+
+            const genImages = document.getElementById("genImages").checked;
+            updateWorkflow(2);
+            showLoading(true);
+
+            try {
+                const resp = await fetch("/api/generate", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        keyword,
+                        content_type: selectedType,
+                        generate_images: genImages,
+                    }),
+                });
+                const data = await resp.json();
+
+                if (data.success) {
+                    showResult(data.content, data.images);
+                    updateWorkflow(4);
+                } else {
+                    alert("生成失败: " + data.error);
+                }
+            } catch (err) {
+                alert("请求失败: " + err.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // 展示结果
+        function showResult(content, images) {
+            document.getElementById("resultSection").style.display = "block";
+            document.getElementById("resultTitle").textContent = content["标题"];
+            document.getElementById("resultType").textContent = content["类型"];
+            document.getElementById("resultBody").textContent = content["正文"];
+            document.getElementById("resultTags").textContent = content["标签"];
+
+            if (images && images.length > 0) {
+                const gallery = document.getElementById("imageGallery");
+                gallery.style.display = "block";
+                const grid = document.getElementById("galleryGrid");
+                grid.innerHTML = "";
+                images.forEach(img => {
+                    const card = document.createElement("div");
+                    card.className = "gallery-item";
+                    card.innerHTML = `
+                        <div class="img-placeholder" style="background: #FFF8F0; aspect-ratio: 3/4; display:flex; align-items:center; justify-content:center; border-radius:12px; padding:20px; text-align:center;">
+                            <div>
+                                <div style="font-size:40px;">🖼️</div>
+                                <div style="margin-top:8px; color:#FF6B35; font-weight:bold;">${img.name}</div>
+                                <div style="font-size:12px; color:#999; margin-top:4px;">${img.path.split('\\').pop()}</div>
+                            </div>
+                        </div>`;
+                    grid.appendChild(card);
+                });
+            }
+
+            document.getElementById("resultActions").style.display = "flex";
+            document.getElementById("resultSection").scrollIntoView({ behavior: "smooth" });
+        }
+
+        // 复制文案
+        function copyText() {
+            const title = document.getElementById("resultTitle").textContent;
+            const body = document.getElementById("resultBody").textContent;
+            const tags = document.getElementById("resultTags").textContent;
+            const full = title + "\n\n" + body + "\n\n" + tags;
+            navigator.clipboard.writeText(full).then(() => {
+                alert("文案已复制到剪贴板！");
+            });
+        }
+
+        function showLoading(show) {
+            document.getElementById("loading").style.display = show ? "block" : "none";
+        }
+
+        // 回车键触发生成
+        document.getElementById("keyword").addEventListener("keydown", function (e) {
+            if (e.key === "Enter") doGenerate();
+        });
+    </script>
+</body>
+</html>
