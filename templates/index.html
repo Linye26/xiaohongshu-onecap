@@ -107,6 +107,7 @@
             <!-- 操作按钮 -->
             <div class="result-actions" id="resultActions" style="display:none;">
                 <button class="btn btn-secondary" onclick="copyText()">复制文案</button>
+                <button class="btn btn-secondary" onclick="downloadAll()">一键下载 ZIP</button>
                 <button class="btn btn-secondary" onclick="location.reload()">再创作一篇</button>
             </div>
         </div>
@@ -115,6 +116,8 @@
     <script>
         // 当前选中的类型
         let selectedType = "教程攻略";
+        // 当前生成的输出目录
+        let currentOutputDir = "";
 
         // 类型选择
         document.getElementById("typeGrid").addEventListener("click", function (e) {
@@ -189,7 +192,7 @@
                 const data = await resp.json();
 
                 if (data.success) {
-                    showResult(data.content, data.images);
+                    showResult(data.content, data.images, data.output_dir);
                     updateWorkflow(4);
                 } else {
                     alert("生成失败: " + data.error);
@@ -202,12 +205,14 @@
         }
 
         // 展示结果
-        function showResult(content, images) {
+        function showResult(content, images, outputDir) {
             document.getElementById("resultSection").style.display = "block";
             document.getElementById("resultTitle").textContent = content["标题"];
             document.getElementById("resultType").textContent = content["类型"];
             document.getElementById("resultBody").textContent = content["正文"];
             document.getElementById("resultTags").textContent = content["标签"];
+            // 保存输出目录（用于下载）
+            currentOutputDir = outputDir || "";
 
             if (images && images.length > 0) {
                 const gallery = document.getElementById("imageGallery");
@@ -217,13 +222,18 @@
                 images.forEach(img => {
                     const card = document.createElement("div");
                     card.className = "gallery-item";
+                    const fallbackSvg = 'data:image/svg+xml,' + encodeURIComponent(
+                        '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="400">' +
+                        '<rect width="300" height="400" fill="#FFF8F0"/>' +
+                        '<text x="150" y="180" text-anchor="middle" font-size="48">🖼️</text>' +
+                        '<text x="150" y="230" text-anchor="middle" font-size="16" fill="#FF6B35" font-weight="bold">' +
+                        img.name +
+                        '</text></svg>'
+                    );
                     card.innerHTML = `
-                        <div class="img-placeholder" style="background: #FFF8F0; aspect-ratio: 3/4; display:flex; align-items:center; justify-content:center; border-radius:12px; padding:20px; text-align:center;">
-                            <div>
-                                <div style="font-size:40px;">🖼️</div>
-                                <div style="margin-top:8px; color:#FF6B35; font-weight:bold;">${img.name}</div>
-                                <div style="font-size:12px; color:#999; margin-top:4px;">${img.path.split('\\').pop()}</div>
-                            </div>
+                        <div class="img-container">
+                            <img src="${img.url}" alt="${img.name}" onerror="this.onerror=null;this.src='` + fallbackSvg + `';">
+                            <div class="img-label">${img.name}</div>
                         </div>`;
                     grid.appendChild(card);
                 });
@@ -242,6 +252,36 @@
             navigator.clipboard.writeText(full).then(() => {
                 alert("文案已复制到剪贴板！");
             });
+        }
+
+        // 一键下载 ZIP
+        async function downloadAll() {
+            if (!currentOutputDir) {
+                alert("请先生成内容后再下载");
+                return;
+            }
+            try {
+                const resp = await fetch("/api/download", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ output_dir: currentOutputDir }),
+                });
+                if (!resp.ok) {
+                    alert("下载失败");
+                    return;
+                }
+                const blob = await resp.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "小红书创作.zip";
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(url);
+            } catch (err) {
+                alert("下载失败: " + err.message);
+            }
         }
 
         function showLoading(show) {

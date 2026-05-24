@@ -1,0 +1,6 @@
+﻿output/
+test_output/
+image-cards/
+__pycache__/
+.baoyu-skills/
+*.pyc

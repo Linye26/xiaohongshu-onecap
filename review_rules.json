@@ -1,0 +1,52 @@
+{
+  "_version": "1.0.0",
+  "_updated": "2026-05-24",
+  "_description": "小红书内容审查规则配置，支持自适应迭代",
+
+  "sensitive_keywords": {
+    "医疗健康": ["治愈", "治疗", "处方", "疗效", "根治", "疗程", "药到病除", "妙手回春"],
+    "金融理财": ["稳赚", "保本", "高收益", "日赚", "躺赚", "月入过万", "财务自由"],
+    "教育培训": ["包过", "保过", "押题", "泄题", "内部资料", "绝密"],
+    "虚假宣传": ["第一品牌", "全网最低", "绝对有效", "100%成功", "独家秘方"]
+  },
+
+  "prohibited_patterns": {
+    "contact_info": ["微信[:：]\\s*\\d+", "QQ[:：]\\s*\\d+", "手机[:：]\\s*1\\d{10}"],
+    "url_bare": ["http[s]?://(?!www\\.xiaohongshu\\.com)", "t\\.me/", "t\\.cn/"],
+    "price_rabbit": ["\\d+[块元]起", "仅需\\d+", "原价\\d+"]
+  },
+
+  "compliance_scores": {
+    "sensitive_keyword_hit": -20,
+    "prohibited_pattern_hit": -30,
+    "positive_score": 5,
+    "pass_threshold": 60,
+    "warning_threshold": 75
+  },
+
+  "positive_indicators": [
+    "干货", "教程", "分享", "经验", "原创", "实测", "推荐", "安利",
+    "学习", "提升", "技巧", "方法", "攻略", "盘点", "测评"
+  ],
+
+  "category_constraints": {
+    "教程攻略": {
+      "require": ["步骤", "方法"],
+      "forbid": ["包过", "保过", "绝对"]
+    },
+    "好物推荐": {
+      "require": ["使用体验", "实测"],
+      "forbid": ["全网最低", "绝对有效"]
+    },
+    "知识科普": {
+      "require": ["数据来源", "参考"],
+      "forbid": ["特效", "秘方"]
+    }
+  },
+
+  "iteration": {
+    "auto_update_url": "",
+    "check_interval_hours": 168,
+    "rule_version_history": ["1.0.0"]
+  }
+}
