@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>小红书一键创作助手</title>
+    <title>小红书一键创作助手 v2</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -61,6 +61,53 @@
                 </div>
             </div>
 
+            <!-- 新增：配色主题选择 -->
+            <div class="form-group">
+                <label>配图风格</label>
+                <div class="theme-grid" id="themeGrid">
+                    <button class="theme-btn active" data-theme="暖色教育">
+                        <span class="theme-dot" style="background:#FF6B35"></span>暖色教育
+                    </button>
+                    <button class="theme-btn" data-theme="清新薄荷">
+                        <span class="theme-dot" style="background:#00B894"></span>清新薄荷
+                    </button>
+                    <button class="theme-btn" data-theme="活力蓝紫">
+                        <span class="theme-dot" style="background:#6C5CE7"></span>活力蓝紫
+                    </button>
+                    <button class="theme-btn" data-theme="暗夜黑金">
+                        <span class="theme-dot" style="background:#D4AF37"></span>暗夜黑金
+                    </button>
+                </div>
+            </div>
+
+            <!-- 新增：图片张数 -->
+            <div class="form-group">
+                <label>配图张数：<span id="countLabel">5</span> 张</label>
+                <input type="range" id="imageCount" min="1" max="5" value="5" step="1" class="count-slider">
+                <div class="count-hints">
+                    <span>1</span><span>2</span><span>3</span><span>4</span><span>5</span>
+                </div>
+            </div>
+
+            <!-- 新增：上传参考图 -->
+            <div class="form-group">
+                <label>上传参考图（可选，将自动提取配色）</label>
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-default" id="uploadDefault">
+                        <span class="upload-icon">+</span>
+                        <span class="upload-text">点击或拖拽上传参考图</span>
+                        <span class="upload-hint">支持 JPG / PNG / WebP</span>
+                    </div>
+                    <div class="upload-preview" id="uploadPreview" style="display:none;">
+                        <img id="previewImg" src="" alt="参考图预览">
+                        <div class="preview-colors" id="previewColors"></div>
+                        <button class="btn-remove" onclick="removeReference()">移除</button>
+                    </div>
+                    <input type="file" id="refFileInput" accept="image/*" style="display:none;">
+                </div>
+                <input type="hidden" id="refImagePath" value="">
+            </div>
+
             <div class="form-group">
                 <label class="checkbox-label">
                     <input type="checkbox" id="genImages" checked>
@@ -75,6 +122,14 @@
                 <button class="btn btn-main" id="btnGenerate" onclick="doGenerate()">
                     一键生成全部
                 </button>
+            </div>
+
+            <!-- 审查规则 -->
+            <div class="review-actions">
+                <button class="btn btn-outline btn-sm" onclick="refreshRules()">
+                    刷新审查规则
+                </button>
+                <span id="rulesStatus" class="rules-status"></span>
             </div>
         </div>
 
@@ -114,12 +169,12 @@
     </div>
 
     <script>
-        // 当前选中的类型
+        // === 状态管理 ===
         let selectedType = "教程攻略";
-        // 当前生成的输出目录
+        let selectedTheme = "暖色教育";
         let currentOutputDir = "";
 
-        // 类型选择
+        // === 类型选择 ===
         document.getElementById("typeGrid").addEventListener("click", function (e) {
             if (e.target.classList.contains("type-btn")) {
                 document.querySelectorAll(".type-btn").forEach(b => b.classList.remove("active"));
@@ -127,11 +182,113 @@
                 selectedType = e.target.dataset.type;
             }
         });
-
-        // 默认选中第一个
         document.querySelector(".type-btn").classList.add("active");
 
-        // 更新工作流状态
+        // === 主题选择 ===
+        document.getElementById("themeGrid").addEventListener("click", function (e) {
+            const btn = e.target.closest(".theme-btn");
+            if (!btn) return;
+            document.querySelectorAll(".theme-btn").forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            selectedTheme = btn.dataset.theme;
+        });
+
+        // === 张数滑块 ===
+        document.getElementById("imageCount").addEventListener("input", function () {
+            document.getElementById("countLabel").textContent = this.value;
+        });
+
+        // === 参考图上传 ===
+        const uploadArea = document.getElementById("uploadArea");
+        const fileInput = document.getElementById("refFileInput");
+
+        uploadArea.addEventListener("click", () => fileInput.click());
+
+        uploadArea.addEventListener("dragover", (e) => {
+            e.preventDefault();
+            uploadArea.classList.add("dragover");
+        });
+        uploadArea.addEventListener("dragleave", () => {
+            uploadArea.classList.remove("dragover");
+        });
+        uploadArea.addEventListener("drop", (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove("dragover");
+            const file = e.dataTransfer.files[0];
+            if (file) handleFileUpload(file);
+        });
+
+        fileInput.addEventListener("change", () => {
+            const file = fileInput.files[0];
+            if (file) handleFileUpload(file);
+        });
+
+        async function handleFileUpload(file) {
+            const formData = new FormData();
+            formData.append("file", file);
+
+            try {
+                const resp = await fetch("/api/upload_reference", { method: "POST", body: formData });
+                const data = await resp.json();
+                if (data.success) {
+                    document.getElementById("refImagePath").value = data.path;
+                    document.getElementById("uploadDefault").style.display = "none";
+                    document.getElementById("uploadPreview").style.display = "block";
+                    document.getElementById("previewImg").src = URL.createObjectURL(file);
+
+                    // 显示提取的配色
+                    const colorDiv = document.getElementById("previewColors");
+                    colorDiv.innerHTML = data.colors.map(c =>
+                        `<span class="color-dot" style="background:${c}" title="${c}"></span>`
+                    ).join("");
+
+                    // 自动选中第一个主题按钮去掉选中态，表示使用参考图配色
+                    document.querySelectorAll(".theme-btn").forEach(b => b.classList.remove("active"));
+                }
+            } catch (err) {
+                alert("上传失败: " + err.message);
+            }
+        }
+
+        function removeReference() {
+            document.getElementById("refImagePath").value = "";
+            document.getElementById("refFileInput").value = "";
+            document.getElementById("uploadDefault").style.display = "";
+            document.getElementById("uploadPreview").style.display = "none";
+            document.getElementById("previewImg").src = "";
+            document.getElementById("previewColors").innerHTML = "";
+            // 恢复默认主题选中
+            document.querySelectorAll(".theme-btn").forEach(b => b.classList.remove("active"));
+            document.querySelector('.theme-btn[data-theme="暖色教育"]').classList.add("active");
+            selectedTheme = "暖色教育";
+        }
+
+        // === 审查规则刷新 ===
+        async function refreshRules() {
+            const btn = event.target;
+            btn.disabled = true;
+            btn.textContent = "刷新中...";
+            document.getElementById("rulesStatus").textContent = "";
+
+            try {
+                const resp = await fetch("/api/review/remote_update", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({}),
+                });
+                const data = await resp.json();
+                document.getElementById("rulesStatus").textContent = data.message;
+                document.getElementById("rulesStatus").style.color = data.success ? "#00B894" : "#E55A2B";
+            } catch (err) {
+                document.getElementById("rulesStatus").textContent = "请求失败";
+                document.getElementById("rulesStatus").style.color = "#E55A2B";
+            } finally {
+                btn.disabled = false;
+                btn.textContent = "刷新审查规则";
+            }
+        }
+
+        // === 工作流状态 ===
         function updateWorkflow(activeStep) {
             for (let i = 1; i <= 4; i++) {
                 const step = document.getElementById("step" + i);
@@ -141,7 +298,7 @@
             }
         }
 
-        // 预览文案
+        // === 预览文案 ===
         async function doPreview() {
             const keyword = document.getElementById("keyword").value.trim();
             if (!keyword) { alert("请输入主题关键词"); return; }
@@ -170,12 +327,15 @@
             }
         }
 
-        // 一键生成全部
+        // === 一键生成全部 ===
         async function doGenerate() {
             const keyword = document.getElementById("keyword").value.trim();
             if (!keyword) { alert("请输入主题关键词"); return; }
 
             const genImages = document.getElementById("genImages").checked;
+            const imageCount = parseInt(document.getElementById("imageCount").value);
+            const refPath = document.getElementById("refImagePath").value;
+
             updateWorkflow(2);
             showLoading(true);
 
@@ -187,6 +347,9 @@
                         keyword,
                         content_type: selectedType,
                         generate_images: genImages,
+                        theme: selectedTheme,
+                        image_count: imageCount,
+                        reference_image: refPath,
                     }),
                 });
                 const data = await resp.json();
@@ -204,14 +367,13 @@
             }
         }
 
-        // 展示结果
+        // === 展示结果 ===
         function showResult(content, images, outputDir) {
             document.getElementById("resultSection").style.display = "block";
             document.getElementById("resultTitle").textContent = content["标题"];
             document.getElementById("resultType").textContent = content["类型"];
             document.getElementById("resultBody").textContent = content["正文"];
             document.getElementById("resultTags").textContent = content["标签"];
-            // 保存输出目录（用于下载）
             currentOutputDir = outputDir || "";
 
             if (images && images.length > 0) {
@@ -225,8 +387,8 @@
                     const fallbackSvg = 'data:image/svg+xml,' + encodeURIComponent(
                         '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="400">' +
                         '<rect width="300" height="400" fill="#FFF8F0"/>' +
-                        '<text x="150" y="180" text-anchor="middle" font-size="48">🖼️</text>' +
-                        '<text x="150" y="230" text-anchor="middle" font-size="16" fill="#FF6B35" font-weight="bold">' +
+                        '<text x="150" y="180" text-anchor="middle" font-size="48">?' +
+                        '</text><text x="150" y="230" text-anchor="middle" font-size="16" fill="#FF6B35" font-weight="bold">' +
                         img.name +
                         '</text></svg>'
                     );
@@ -243,33 +405,19 @@
             document.getElementById("resultSection").scrollIntoView({ behavior: "smooth" });
         }
 
-        // 复制文案
         function copyText() {
             const title = document.getElementById("resultTitle").textContent;
             const body = document.getElementById("resultBody").textContent;
             const tags = document.getElementById("resultTags").textContent;
             const full = title + "\n\n" + body + "\n\n" + tags;
-            navigator.clipboard.writeText(full).then(() => {
-                alert("文案已复制到剪贴板！");
-            });
+            navigator.clipboard.writeText(full).then(() => alert("文案已复制到剪贴板！"));
         }
 
-        // 一键下载 ZIP
         async function downloadAll() {
-            if (!currentOutputDir) {
-                alert("请先生成内容后再下载");
-                return;
-            }
+            if (!currentOutputDir) { alert("请先生成内容后再下载"); return; }
             try {
-                const resp = await fetch("/api/download", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ output_dir: currentOutputDir }),
-                });
-                if (!resp.ok) {
-                    alert("下载失败");
-                    return;
-                }
+                const resp = await fetch("/api/download", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ output_dir: currentOutputDir }) });
+                if (!resp.ok) { alert("下载失败"); return; }
                 const blob = await resp.blob();
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement("a");
@@ -279,16 +427,13 @@
                 a.click();
                 a.remove();
                 window.URL.revokeObjectURL(url);
-            } catch (err) {
-                alert("下载失败: " + err.message);
-            }
+            } catch (err) { alert("下载失败: " + err.message); }
         }
 
         function showLoading(show) {
             document.getElementById("loading").style.display = show ? "block" : "none";
         }
 
-        // 回车键触发生成
         document.getElementById("keyword").addEventListener("keydown", function (e) {
             if (e.key === "Enter") doGenerate();
         });

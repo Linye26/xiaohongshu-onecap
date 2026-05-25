@@ -12,12 +12,6 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 RULES_PATH = os.path.join(BASE_DIR, "review_rules.json")
 
 
-def _load_rules():
-    """加载审查规则"""
-    with open(RULES_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
 def _save_rules(rules):
     """保存规则更新"""
     rules["_updated"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -225,6 +219,78 @@ def export_review_report(content: dict, result: dict) -> str:
 
     lines.append("=" * 50)
     return "\n".join(lines)
+
+
+# ==================== 远程规则更新 ====================
+
+# 模块级缓存，支持热重载
+_rules_cache = None
+_rules_cache_time = None
+
+
+def reload_rules():
+    """强制重新加载审查规则（清除缓存）"""
+    global _rules_cache, _rules_cache_time
+    _rules_cache = None
+    _rules_cache_time = None
+    return _load_rules()
+
+
+def _load_rules():
+    """加载审查规则（带缓存）"""
+    global _rules_cache, _rules_cache_time
+    mtime = os.path.getmtime(RULES_PATH)
+    if _rules_cache is not None and _rules_cache_time == mtime:
+        return _rules_cache
+    with open(RULES_PATH, "r", encoding="utf-8") as f:
+        _rules_cache = json.load(f)
+        _rules_cache_time = mtime
+    return _rules_cache
+
+
+def merge_remote_rules(remote_data: dict) -> list:
+    """合并远程规则到本地 review_rules.json，返回新增条目列表"""
+    rules = _load_rules()
+    added = []
+
+    # 合并敏感词
+    remote_keywords = remote_data.get("sensitive_keywords", {})
+    for category, words in remote_keywords.items():
+        if category not in rules["sensitive_keywords"]:
+            rules["sensitive_keywords"][category] = []
+        for word in words:
+            if word not in rules["sensitive_keywords"][category]:
+                rules["sensitive_keywords"][category].append(word)
+                added.append(f"敏感词:{category}:{word}")
+
+    # 合并禁止模式
+    remote_patterns = remote_data.get("prohibited_patterns", {})
+    for ptype, patterns in remote_patterns.items():
+        if ptype not in rules["prohibited_patterns"]:
+            rules["prohibited_patterns"][ptype] = []
+        for pat in patterns:
+            if pat not in rules["prohibited_patterns"][ptype]:
+                rules["prohibited_patterns"][ptype].append(pat)
+                added.append(f"禁止模式:{ptype}")
+
+    # 合并合规分数
+    remote_scores = remote_data.get("compliance_scores", {})
+    for key, val in remote_scores.items():
+        if key in rules["compliance_scores"]:
+            rules["compliance_scores"][key] = val
+
+    # 合并分类约束
+    remote_constraints = remote_data.get("category_constraints", {})
+    for ct, constraints in remote_constraints.items():
+        rules["category_constraints"][ct] = constraints
+
+    # 记录版本
+    rules["iteration"]["rule_version_history"].append(
+        f"{datetime.now():%Y%m%d_%H%M%S}_remote_merge_{len(added)}_items"
+    )
+    _save_rules(rules)
+    reload_rules()
+    return added
 
 
 # ==================== 自检入口 ====================

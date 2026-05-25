@@ -1,6 +1,7 @@
 """
-小红书一键创作助手 - 主程序（AI增强版）
+小红书一键创作助手 - 主程序（AI增强版 v2）
 基于 Flask 的 Web 应用，集成 Ollama 本地模型生成高品质小红书内容
+新增：主题选择 / 张数控制 / 参考图上传 / 审查规则实时更新
 """
 
 import os
@@ -16,14 +17,17 @@ from flask import Flask, render_template, request, jsonify, send_file, send_from
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from content_generator import generate_all, CONTENT_TYPES
-from image_generator import generate_all_images
+from image_generator import generate_all_images, COLOR_THEMES
 from content_reviewer import review_content, export_review_report
 
 app = Flask(__name__)
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB 上传限制
 
 # 项目根目录
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 OUTPUT_DIR = os.path.join(BASE_DIR, "output")
+UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
 @app.route("/")
@@ -35,16 +39,25 @@ def index():
 
 @app.route("/api/generate", methods=["POST"])
 def generate():
-    """生成内容 API"""
+    """生成内容 API（v2：支持主题/张数/参考图）"""
     data = request.json
     keyword = data.get("keyword", "").strip()
     content_type = data.get("content_type", "教程攻略")
     generate_images = data.get("generate_images", True)
+    theme = data.get("theme", "暖色教育")
+    image_count = data.get("image_count", 5)
+    reference_image = data.get("reference_image", "").strip()
 
     if not keyword:
         return jsonify({"success": False, "error": "请输入关键词"}), 400
+    if image_count < 1 or image_count > 5:
+        image_count = 5
 
-    # 创建本次输出目录（关键词做安全处理）
+    # 验证参考图路径安全
+    if reference_image and not os.path.exists(reference_image):
+        reference_image = ""
+
+    # 创建本次输出目录
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     safe_keyword = re.sub(r'[^\w\-]', '_', keyword)[:20]
     session_dir = os.path.join(OUTPUT_DIR, f"{timestamp}_{safe_keyword}")
@@ -79,11 +92,16 @@ def generate():
         f.write(f"📝 正文：\n{content['正文']}\n\n")
         f.write(f"🏷️ 标签：\n{content['标签']}\n")
 
-    # 生成图片
+    # 生成图片（传入主题/张数/参考图）
     images = []
     if generate_images:
         try:
-            images = generate_all_images(content, session_dir)
+            images = generate_all_images(
+                content, session_dir,
+                theme=theme,
+                image_count=image_count,
+                reference_image=reference_image if reference_image else None
+            )
         except Exception as e:
             print(f"图片生成失败: {e}")
 
@@ -212,6 +230,83 @@ def add_review_pattern():
     
     success = add_prohibited_pattern(pattern_type, pattern)
     return jsonify({"success": success, "message": f"已添加禁止模式: {pattern_type}"})
+
+
+# ==================== 新增 API（v2） ====================
+
+@app.route("/api/themes", methods=["GET"])
+def get_themes():
+    """获取所有可用配色主题"""
+    return jsonify({"success": True, "themes": list(COLOR_THEMES.keys())})
+
+
+@app.route("/api/upload_reference", methods=["POST"])
+def upload_reference():
+    """上传参考图，提取主色并返回配色信息"""
+    if 'file' not in request.files:
+        return jsonify({"success": False, "error": "未上传文件"}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"success": False, "error": "文件名为空"}), 400
+
+    # 安全的文件名
+    safe_name = re.sub(r'[^\w\.\-]', '_', file.filename)
+    save_path = os.path.join(UPLOAD_DIR, f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{safe_name}")
+    file.save(save_path)
+
+    # 提取配色
+    from image_generator import extract_colors_from_ref
+    colors = extract_colors_from_ref(save_path, 3)
+    
+    return jsonify({
+        "success": True,
+        "path": save_path,
+        "colors": colors,
+        "primary": colors[0],
+        "accent": colors[1] if len(colors) > 1 else colors[0],
+        "bg": colors[2] if len(colors) > 2 else "#FFF8F0",
+    })
+
+
+@app.route("/api/review/remote_update", methods=["POST"])
+def remote_update_rules():
+    """从小红书官方渠道或自定义URL拉取最新审查规则"""
+    data = request.json
+    url = data.get("url", "").strip()
+    
+    # 默认使用项目内置的规则更新源（可替换为真实URL）
+    if not url:
+        url = data.get("source", "")
+    
+    result = {"success": False, "message": "", "added": []}
+    
+    if not url:
+        # 本地刷新：重新加载 review_rules.json
+        from content_reviewer import reload_rules
+        try:
+            reload_rules()
+            result["success"] = True
+            result["message"] = "已重新加载本地审查规则"
+        except Exception as e:
+            result["message"] = f"重新加载失败: {e}"
+    else:
+        # 远程规则拉取
+        try:
+            import urllib.request
+            req = urllib.request.Request(url, headers={"User-Agent": "XHS-Creator/2.0"})
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                remote_data = json.loads(resp.read().decode("utf-8"))
+            
+            from content_reviewer import merge_remote_rules
+            added = merge_remote_rules(remote_data)
+            result["success"] = True
+            result["message"] = f"远程规则合并完成"
+            result["added"] = added
+        except Exception as e:
+            result["message"] = f"远程拉取失败: {e}"
+    
+    return jsonify(result)
 
 
 # ==================== 主程序入口 ====================
